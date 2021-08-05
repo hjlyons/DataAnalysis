@@ -1,6 +1,9 @@
 from selenium import webdriver
 
 OLYMPICS_RESULTS_URL =  'https://olympics.com/tokyo-2020/olympic-games/en/results/taekwondo/olympic-schedule-and-results.htm'
+TABLE_RESULTS_XPATH = './/*[@class="table table-result"]'
+CONTESTANT_RESULTS_XPATH = './/*[starts-with(@class,"Res")]'
+
 
 def setup_webdriver(clear_popups=True, headless=True):
     """Returns a chromium driver (looks in PATH to find it by default)
@@ -76,12 +79,32 @@ def parse_contestant_row(contestant_element):
     return contestant_vars
 
 
+def parse_action_row(action_element, round_tag="R1"):
+
+    action_vars = {}
+
+    action_vars["round"] = round_tag
+    if action_element.find_element_by_xpath('.//*[@class="play-by-play-time "]').text == '':
+        return None
+
+    action_vars["round_time"] = action_element.find_element_by_xpath('.//*[@class="play-by-play-time "]').text
+    action_vars["score_card"] = action_element.find_element_by_xpath('.//*[starts-with(@class,"play-by-play-box when")]/div[2]').text
+    try:
+        action_vars["action_string1"] = action_element.find_element_by_xpath('.//*[@class="play-by-play-box "]/div/div[2]').text
+    except:
+        action_vars["action_string1"] = None
+
+    try:
+        action_vars["action_string2"] = action_element.find_element_by_xpath('.//*[@class="play-by-play-box"]/div/div[2]').text
+    except:
+        action_vars["action_string2"] = None
+
+    return action_vars
+
 def parse_match_page(driver, URL):
     
     driver.get(URL)
-    
-    TABLE_RESULTS_XPATH = './/*[@class="table table-result"]'
-    CONTESTANT_RESULTS_XPATH = './/*[starts-with(@class,"Res")]'
+    driver.implicitly_wait(10) 
 
     results_table_element = driver.find_elements_by_xpath(TABLE_RESULTS_XPATH)[-1]
     contestant_row_elements = results_table_element.find_elements_by_xpath(CONTESTANT_RESULTS_XPATH)
@@ -94,4 +117,23 @@ def parse_match_page(driver, URL):
         parsed_contestant_vars = {f'{contestant_tag}_{k}': v for k, v in parsed_contestant_vars.items()}
         all_contestant_vars.update(parsed_contestant_vars)
 
-    return all_contestant_vars
+
+    play_by_play = driver.find_element_by_xpath('.//*[@id="PlayByPlay"]')
+    round_tables = play_by_play.find_elements_by_xpath('.//*[starts-with(@id,"play-by-play-table-R")]')
+    all_action_elements = []
+    for t in round_tables:
+        actions = t.find_elements_by_xpath('.//*[@class="Res2 tablesorter-childRow"]')
+        all_action_elements = all_action_elements + actions
+
+    round_list = ["R1", "R2", "R3"]
+    
+    action_list = []
+    for round_tag in round_list:
+        button = driver.find_element_by_xpath(f'.//*[starts-with(@period,"{round_tag}")]')
+        button.click()
+        driver.implicitly_wait(4) 
+        for action in all_action_elements:
+            action_dict = parse_action_row(action, round_tag)
+            action_list.append(action_dict)
+
+    return all_contestant_vars, action_list
