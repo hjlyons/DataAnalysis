@@ -129,9 +129,14 @@ def parse_match_page(driver, URL):
     
     action_list = []
     for round_tag in round_list:
-        button = driver.find_element_by_xpath(f'.//*[starts-with(@period,"{round_tag}")]')
-        button.click()
-        driver.implicitly_wait(4) 
+        try:
+            button = driver.find_element_by_xpath(f'.//*[starts-with(@period,"{round_tag}")]')
+            button.click()
+        except:
+            continue
+        
+        # magic sleep to ensure no lag from button clicks
+        driver.implicitly_wait(2) 
         for action in all_action_elements:
             action_dict = parse_action_row(action, round_tag)
             action_list.append(action_dict)
